@@ -6,6 +6,34 @@ Copyright (c) 2013 American Go Association
 
 [![Code Climate](https://codeclimate.com/github/usgo/gocongress.png)](https://codeclimate.com/github/usgo/gocongress)
 
+Environment Setup
+-----------------
+
+You have two options, a virtual environment setup, or a local setup.
+
+1. Virtual setup
+    1. Requirements
+        1. Read the local setup section anyway, just so you can see the steps that are automated for you in the virtual environment setup.
+        1. Get [Vagrant][22]
+        1. Get [VirtualBox][23]
+        1. [Fork and clone][8] this github repo
+    1. Point the bootstrap.sh script to your cloned repository
+        1. Go to the .../gocongress/vm/ directory and open up bootstrap.sh
+        1. Change the gocongressGithubUrl variable to the clone url of your forked gocongress github repository (something like "https://github.com/[your_user_name]/gocongress.git").
+        1. Run "vagrant up" in the vm directory.
+            * Depending on internet connection and machine speed, this can take a while.
+            * This is creating a virtual Ubuntu 12.04 (32 bit) machine on your computer and then running a script to download and install all the dependencies necessary to run gocongress. If you're curious, that script lives at .../gocontress/vm/bootstrap.sh.
+    1. When it's done setting up, point your browser to localhost:8080 and you should see the gocongress page.
+        * This works because the local machine's port 8080 is forwarded to virtual machine's port 80, which is where the gocongress website is running
+    1. Run "vagrant ssh" to ssh into the new virtual machine.
+        * Your virtual machine username is vagrant (You can verify with "whoami" command)
+        * There is another clone of your forked repo in ~/gocongress/ which is being used to serve the site on your physical machine's localhost:8080
+        * type "exit" to leave the virtual machine.
+    1. Get comfortable with Vagrant (and later VirtualBox if you find it necessary).
+    1. Code away!
+1. Local setup
+    * Read the below "Contribute" section.
+
 Contribute
 ----------
 
@@ -96,3 +124,5 @@ tested, the first year's site in 2011.
 [19]: http://www.postgresql.org/docs/9.2/interactive/user-manag.html
 [20]: http://trac.webkit.org/wiki/JavaScriptCore
 [21]: http://guides.rubygems.org/
+[22]: http://www.vagrantup.com/
+[23]: https://www.virtualbox.org/

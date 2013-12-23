@@ -12,7 +12,11 @@
 # entries into your .bashrc equivalent for rbenv to initialize properly.
 ###########################
 
-gocongressGithubUrl="https://github.com/jeffbmartinez/gocongress.git"
+# Change this is *your* fork's clone url (https://github.com/[your_user_name]/gocongress.git)
+gocongressGithubUrl="https://github.com/usgo/gocongress.git"
+
+###########################
+
 rbenvGithubUrl="https://github.com/sstephenson/rbenv.git"
 rbenvBuildPluginGithubUrl="https://github.com/sstephenson/ruby-build.git"
 rubyVersionUrl="https://raw.github.com/usgo/gocongress/master/.ruby-version"
@@ -26,7 +30,7 @@ rbenvBinDir="${rbenvDir}/bin"
 rbenvShimsDir="${rbenvDir}/shims"
 rbenvPluginsDir="${rbenvDir}/plugins"
 
-gocongressDirectory="${VAGRANT_HOME}/work/gocongress"
+gocongressDir="${VAGRANT_HOME}/gocongress"
 
 ###########################################
 
@@ -35,6 +39,8 @@ function main() {
   getCodeBase
   installBundlerAndGems
   giveOwnershipToVagrant
+  configureRailsWithPostgres
+  copyEnvironmentVariablesFile
   showFinishedMessage
 }
 
@@ -58,14 +64,14 @@ function installDependencies() {
 }
 
 function getCodeBase() {
-  git clone "${gocongressGithubUrl}" "${gocongressDirectory}/"
-  echo "* Cloned gocongress code base to ${gocongressDirectory}/"
+  git clone "${gocongressGithubUrl}" "${gocongressDir}/"
+  echo "* Cloned gocongress code base to ${gocongressDir}/"
 
   giveOwnershipToVagrant
 }
 
 function installBundlerAndGems() {
-  gemfilePath="${gocongressDirectory}/Gemfile"
+  gemfilePath="${gocongressDir}/Gemfile"
 
   su --login vagrant --command "${rbenvShimsDir}/gem install bundler"
   echo "* Bundler has been installed."
@@ -81,6 +87,37 @@ function installBundlerAndGems() {
 # and everything in it to vagrant user and group.
 function giveOwnershipToVagrant() {
   chown -R vagrant:vagrant "${VAGRANT_HOME}/"
+}
+
+function configureRailsWithPostgres() {
+  createPostgresUser
+  createPostgresDatabases
+
+  copyDefaultDbConfigToRails
+}
+
+function createPostgresUser() {
+  su --login postgres -c "createuser --username=postgres --superuser vagrant"
+}
+
+function createPostgresDatabases() {
+  #su --login vagrant -c "createdb --username=vagrant --locale=en_US.utf8 --encoding=UTF8 --template=template0 usgc_test"
+  #su --login vagrant -c "createdb --username=vagrant --locale=en_US.utf8 --encoding=UTF8 --template=template0 usgc_dev"
+
+  su --login vagrant -c "createdb --username=vagrant usgc_test"
+  su --login vagrant -c "createdb --username=vagrant usgc_dev"
+}
+
+function copyDefaultDbConfigToRails() {
+  cp "${gocongressDir}/config/database.example.yml" "${gocongressDir}/config/database.yml"
+
+  giveOwnershipToVagrant
+}
+
+function copyEnvironmentVariablesFile() {
+  cp "${gocongressDir}/.env.example" "${gocongressDir}/.env"
+
+  giveOwnershipToVagrant
 }
 
 function showFinishedMessage() {
