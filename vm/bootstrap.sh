@@ -6,58 +6,143 @@
 # For this reason, I specify a separate VAGRANT_ROOT to be used where
 # appropriate and chown it at the end of the script so user 'vagrant' will
 # have access when the user actually logs in.
+#
+# This script sets up rbenv for bash. If you use sh or zsh it will need to
+# be modified to handle those. I believe you just need to add the appropriate
+# entries into your .bashrc equivalent for rbenv to initialize properly.
+###########################
 
-githubRepoCloneUrl="https://github.com/jeffbmartinez/gocongress.git"
+gocongressGithubUrl="https://github.com/jeffbmartinez/gocongress.git"
+rbenvGithubUrl="https://github.com/sstephenson/rbenv.git"
+rbenvBuildPluginGithubUrl="https://github.com/sstephenson/ruby-build.git"
+rubyVersionUrl="https://raw.github.com/usgo/gocongress/master/.ruby-version"
+
+###########################
 
 VAGRANT_HOME="/home/vagrant"
 
+rbenvDir="${VAGRANT_HOME}/.rbenv"
+rbenvBinDir="${rbenvDir}/bin"
+rbenvShimsDir="${rbenvDir}/shims"
+rbenvPluginsDir="${rbenvDir}/plugins"
+
+gocongressDirectory="${VAGRANT_HOME}/work/gocongress"
+
+###########################################
+
+function main() {
+  installDependencies
+  getCodeBase
+  installBundlerAndGems
+  giveOwnershipToVagrant
+  showFinishedMessage
+}
+
+function installDependencies() {
+  addDependentRepositories
+
+  apt-get update
+
+  apt-get install -y emacs23-nox
+  apt-get install -y git-core
+  apt-get install -y build-essential # gcc, make, etc.
+  apt-get install -y libxslt-dev
+  apt-get install -y libxml2-dev
+  apt-get install -y postgresql-9.2
+  apt-get install -y libpq-dev # postgres libs
+  apt-get install -y nodejs
+
+  apt-get autoremove
+
+  installRuby
+}
+
+function getCodeBase() {
+  git clone "${gocongressGithubUrl}" "${gocongressDirectory}/"
+  echo "* Cloned gocongress code base to ${gocongressDirectory}/"
+
+  giveOwnershipToVagrant
+}
+
+function installBundlerAndGems() {
+  gemfilePath="${gocongressDirectory}/Gemfile"
+
+  su --login vagrant --command "${rbenvShimsDir}/gem install bundler"
+  echo "* Bundler has been installed."
+
+  su --login vagrant --command "${rbenvBinDir}/rbenv rehash"
+  echo "* rbenv shims have been rehashed."
+
+  su --login vagrant --command "${rbenvShimsDir}/bundle install --gemfile=${gemfilePath}"
+  echo "* gems listed in ${gemfilePath} have been installed."
+}
+
+# This bootstrapping script is run as root, so change ownership of vagrant home directory
+# and everything in it to vagrant user and group.
+function giveOwnershipToVagrant() {
+  chown -R vagrant:vagrant "${VAGRANT_HOME}/"
+}
+
+function showFinishedMessage() {
+  echo
+  echo "**************************************************************"
+  echo "* Read the README.md to continue setting up your environment *"
+  echo "**************************************************************"
+  echo
+}
+
+function addDependentRepositories() {
+  addPostgreSqlRepository
+}
+
 # Add postgresql repository and key to apt
-echo "deb http://apt.postgresql.org/pub/repos/apt/ precise-pgdg main" > /etc/apt/sources.list.d/pgdg.list
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+# https://wiki.postgresql.org/wiki/Apt#Quickstart
+function addPostgreSqlRepository() {
+  echo "deb http://apt.postgresql.org/pub/repos/apt/ precise-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+  wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
 
-#apt-get update
+  echo "* Added postgresql repository and key to apt."
+}
 
-#apt-get install -y emacs23-nox
-#apt-get install -y git-core
-#apt-get install -y build-essential # gcc, make, etc.
-#apt-get install -y libxslt-dev
-#apt-get install -y libxml2-dev
-#apt-get install -y postgresql-9.2
-#apt-get install -y libpq-dev # postgres libs
-#apt-get install -y nodejs
+# Install rbenv and use it to install ruby version specified in repository.
+# Uses git to install rbenv (which installs ruby), so git must be installed
+# on the system in order to use this.
+function installRuby() {
+  installRbenv
 
-#apt-get autoremove
+  rubyVersion="$(wget --quiet -O - ${rubyVersionUrl})"
+  echo "*** About to download and install ruby ${rubyVersion}"
+  echo "*** This part can be slow, but feel free to worry after 15-20 mins :)"
+  su --login vagrant --command "${rbenvBinDir}/rbenv install ${rubyVersion}"
+  su --login vagrant --command "${rbenvBinDir}/rbenv global ${rubyVersion}"
 
-# Install rbenv (https://github.com/sstephenson/rbenv#installation)
-git clone https://github.com/sstephenson/rbenv.git ${VAGRANT_HOME}/.rbenv
-echo "export PATH=\"${VAGRANT_HOME}/.rbenv/bin\":\$PATH" >> ${VAGRANT_HOME}/.bashrc
-echo 'eval "$(rbenv init -)"' >> ${VAGRANT_HOME}/.bashrc
-su -l vagrant -c ". ${VAGRANT_HOME}/.bashrc" # Reload bashrc as vagrant so rbenv is available
+  echo "* ruby ${rubyVersion} installed and set as default by rbenv."
+}
+
+# rbenv is a ruby version manager. It allows you to install and switch between many versions of ruby.
+# https://github.com/sstephenson/rbenv#installation
+function installRbenv() {
+  git clone "${rbenvGithubUrl}" "${rbenvDir}/"
+  echo "export PATH=\"${rbenvBinDir}\":\$PATH" >> "${VAGRANT_HOME}/.bashrc"
+  echo 'eval "$(rbenv init -)"' >> "${VAGRANT_HOME}/.bashrc"
+
+  giveOwnershipToVagrant
+
+  su --login vagrant --command ". ${VAGRANT_HOME}/.bashrc" # Reload bashrc as vagrant so rbenv is available
+
+  installRbenvPlugins
+
+  echo "* rbenv and plugins installed."
+}
 
 # Install ruby-build (rbenv plugin) to provide "rbenv install" functionality
 # https://github.com/sstephenson/ruby-build#installation
-git clone https://github.com/sstephenson/ruby-build.git "${VAGRANT_HOME}/.rbenv/plugins/ruby-build"
+function installRbenvPlugins() {
+  git clone "${rbenvBuildPluginGithubUrl}" "${rbenvPluginsDir}/ruby-build"
 
-# Install required ruby version
-rubyVersion="$(wget --quiet -O - https://raw.github.com/usgo/gocongress/master/.ruby-version)"
-su -l vagrant -c "${VAGRANT_HOME}/.rbenv/bin/rbenv install ${rubyVersion}"
+  giveOwnershipToVagrant
+}
 
-# Get code base
-gocongressDirectory="${VAGRANT_HOME}/work/gocongress"
-git clone "${githubRepoCloneUrl}" "${gocongressDirectory}/"
+###########################
 
-# Install bundler and gems
-cd "${gocongressDirectory}/"
-"${VAGRANT_HOME}/.rbenv/versions/${rubyVersion}/bin/gem" install bundler
-bundle install
-
-
-
-# Script is run as root, so give ownership of vagrant home directory to vagrant user and group.
-chown -R vagrant:vagrant "${VAGRANT_HOME}/"
-
-echo
-echo "**************************************************************"
-echo "* Read the README.md to continue setting up your environment *"
-echo "**************************************************************"
-echo
+main
